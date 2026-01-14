@@ -1,0 +1,13 @@
+# Build artifacts
+*.o
+simple_client
+simple_server
+
+# Test certificates
+*.crt
+*.key
+*.pem
+
+# Mojo cache
+__pycache__/
+.mojopkg/
