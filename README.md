@@ -9,6 +9,7 @@ A Gemini protocol implementation for Mojo, providing both client and server libr
 This library provides:
 - **GeminiClient** - Make requests to Gemini servers
 - **GeminiServer** - Serve Gemini content over TLS
+- **PreforkServer** - Multi-process server for concurrent request handling
 
 Built on [mojo-tls](https://github.com/anthropics/mojo-tls) for TLS 1.3 support via mbedTLS.
 
@@ -242,9 +243,39 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
     -subj "/CN=username"
 ```
 
+## Prefork Server
+
+For concurrent request handling, use `PreforkServer` which spawns multiple worker processes. Each worker binds to the same port using `SO_REUSEPORT`, and the kernel distributes connections across workers.
+
+```mojo
+from mojo_gemini import GeminiRequest
+from mojo_gemini.prefork import PreforkServer
+from mojo_gemini._ffi.process import getpid
+
+fn handler(mut req: GeminiRequest) raises:
+    var content = "# Hello from worker " + String(getpid())
+    req.respond_success("text/gemini", content)
+
+fn main() raises:
+    var server = PreforkServer[handler](
+        cert_path="server.crt",
+        key_path="server.key",
+        num_workers=4,  # Spawn 4 worker processes
+    )
+    server.serve()
+```
+
+Benefits:
+- **Concurrent handling** - Multiple requests served simultaneously
+- **No thundering herd** - Each worker has its own accept queue
+- **Crash isolation** - One worker crash doesn't affect others
+- **Simple model** - Each worker uses blocking I/O (no async complexity)
+
+The master process monitors workers and exits when all workers die. For automatic restarts, use an external process manager (systemd, supervisord).
+
 ## Known Limitations
 
-- **Synchronous only** - No async/concurrent connection handling. Server processes one request at a time.
+- **Blocking I/O** - Individual connections use blocking I/O (no async). Use `PreforkServer` for concurrent handling across multiple worker processes.
 - **No percent-encoding** - URLs are not automatically encoded/decoded. Pass pre-encoded URLs if needed.
 - **No streaming writes** - Server responses must fit in memory; no chunked transfer.
 
@@ -261,11 +292,16 @@ mojo-gemini/
 │   ├── response.mojo      # Client response handling
 │   ├── server.mojo        # GeminiServer
 │   ├── request.mojo       # Server request handling
-│   └── mime.mojo          # MIME type detection
+│   ├── prefork.mojo       # PreforkServer for multi-process serving
+│   ├── mime.mojo          # MIME type detection
+│   └── _ffi/              # FFI bindings for POSIX APIs
+│       ├── process.mojo   # fork, waitpid, getpid, _exit
+│       └── signal.mojo    # Signal constants
 ├── examples/
 │   ├── simple_client.mojo
 │   ├── simple_server.mojo
-│   └── client_auth_server.mojo
+│   ├── client_auth_server.mojo
+│   └── prefork_server.mojo
 ├── build.sh
 └── README.md
 ```
