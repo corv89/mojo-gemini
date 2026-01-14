@@ -67,6 +67,22 @@ var server = GeminiServer.bind("cert.pem", "key.pem")
 server.serve[handler]()  # Note: function passed as type parameter
 ```
 
+### Server with Client Auth
+```mojo
+from mojo_gemini import GeminiServer, GeminiRequest
+
+fn handler(mut req: GeminiRequest) raises:
+    if req.has_client_cert():
+        var fingerprint = req.client_cert_fingerprint()
+        # Use fingerprint as identity
+    else:
+        req.respond_cert_required()
+
+# client_auth: "none", "optional", or "required"
+var server = GeminiServer.bind_with_client_auth("cert.pem", "key.pem", client_auth="optional")
+server.serve[handler]()
+```
+
 ## Key Design Decisions
 
 - **TOFU Model**: Client uses `set_verify_none()` to accept self-signed certificates
@@ -100,7 +116,6 @@ Test client against external server:
 
 ## Known Limitations
 
-- Peer certificate access not exposed (would need mojo-tls shim extension)
 - No async/concurrent connection handling
 - No percent-encoding/decoding for URLs
 

@@ -175,11 +175,77 @@ Common codes:
 - `52` GONE - Permanently removed
 - `60` CLIENT CERTIFICATE REQUIRED
 
+## Client Certificate Authentication
+
+Gemini supports identity-based authentication using client certificates. The certificate's SHA-256 fingerprint serves as a persistent user identity.
+
+### Server-Side Authentication
+
+```mojo
+from mojo_gemini import GeminiServer, GeminiRequest
+
+fn handler(mut req: GeminiRequest) raises:
+    if req.path() == "/private":
+        # Require a client certificate
+        if not req.has_client_cert():
+            req.respond_cert_required("Please present a certificate")
+            return
+
+        # Get the certificate fingerprint (64-char hex string)
+        var fingerprint = req.client_cert_fingerprint()
+
+        # Optionally verify against a known fingerprint
+        if req.verify_client_cert("abc123..."):
+            req.respond_success("text/gemini", "# Welcome, trusted user!")
+        else:
+            req.respond_cert_unauthorized("Unknown certificate")
+        return
+
+    req.respond_success("text/gemini", "# Public page")
+
+fn main() raises:
+    # Use "optional" to request but not require client certs
+    # Use "required" to reject connections without certificates
+    var server = GeminiServer.bind_with_client_auth(
+        "server.crt", "server.key",
+        client_auth="optional"
+    )
+    server.serve[handler]()
+```
+
+### Client-Side Certificate
+
+```mojo
+from mojo_gemini import GeminiClient
+
+fn main() raises:
+    var client = GeminiClient()
+    client.set_client_certificate("client.crt", "client.key")
+
+    var response = client.request("gemini://example.com/private")
+    # Server will see client's certificate fingerprint
+```
+
+### Certificate Response Methods
+
+```mojo
+req.respond_cert_required("Please present a certificate")      # Status 60
+req.respond_cert_unauthorized("Certificate not authorized")    # Status 61
+req.respond_cert_invalid("Certificate is malformed")           # Status 62
+```
+
+### Generating Client Certificates
+
+```bash
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
+    -keyout client.key -out client.crt -days 365 -nodes \
+    -subj "/CN=username"
+```
+
 ## Known Limitations
 
 - **Synchronous only** - No async/concurrent connection handling. Server processes one request at a time.
 - **No percent-encoding** - URLs are not automatically encoded/decoded. Pass pre-encoded URLs if needed.
-- **No peer certificate access** - Cannot inspect client certificates on the server side (would require mojo-tls extension).
 - **No streaming writes** - Server responses must fit in memory; no chunked transfer.
 
 ## Project Structure
@@ -198,7 +264,8 @@ mojo-gemini/
 │   └── mime.mojo          # MIME type detection
 ├── examples/
 │   ├── simple_client.mojo
-│   └── simple_server.mojo
+│   ├── simple_server.mojo
+│   └── client_auth_server.mojo
 ├── build.sh
 └── README.md
 ```

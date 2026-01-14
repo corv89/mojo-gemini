@@ -75,6 +75,47 @@ struct GeminiServer(Movable):
         var listener = TLSListener.bind(cert_path, key_path, address, port_str)
         return GeminiServer(listener^)
 
+    @staticmethod
+    fn bind_with_client_auth(
+        cert_path: String,
+        key_path: String,
+        client_auth: String = "none",
+        address: String = "0.0.0.0",
+        port: Int = GEMINI_DEFAULT_PORT,
+    ) raises -> GeminiServer:
+        """Create a Gemini server with client certificate authentication.
+
+        Args:
+            cert_path: Path to server certificate file (PEM).
+            key_path: Path to server private key file (PEM).
+            client_auth: Client certificate mode:
+                - "none": Don't request client certificates (default)
+                - "optional": Request but don't require client certificates
+                - "required": Require client certificates (handshake fails without)
+            address: Address to bind to (default "0.0.0.0" for all interfaces).
+            port: Port to listen on (default 1965).
+
+        Returns:
+            GeminiServer ready to accept connections.
+
+        Raises:
+            If binding or certificate loading fails.
+        """
+        var config = TLSConfig()
+        config.set_server_mode()
+        config.load_own_cert_and_key(cert_path, key_path)
+
+        # Set client auth mode
+        if client_auth == "required":
+            config.set_verify_required()
+        elif client_auth == "optional":
+            config.set_verify_optional()
+        # else: default is no client cert verification
+
+        var listener = TLSListener(config^)
+        listener._bind(address, String(port))
+        return GeminiServer(listener^)
+
     fn serve[
         F: fn (mut GeminiRequest) raises -> None
     ](mut self) raises:

@@ -167,7 +167,7 @@ struct GeminiClient(Movable):
         var meta = ""
         if len(header) > 3:
             meta = String(header[3:])
-        elif len(header) > 2 and header[2] != " ":
+        elif len(header) > 2 and header.as_bytes()[2] != ord(" "):
             # Status without space (technically non-compliant but handle it)
             meta = String(header[2:])
 

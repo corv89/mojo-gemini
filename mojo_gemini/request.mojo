@@ -18,6 +18,9 @@ from .status import (
     NOT_FOUND,
     PERM_FAILURE,
     TEMP_FAILURE,
+    CERT_REQUIRED,
+    CERT_UNAUTHORIZED,
+    CERT_INVALID,
 )
 from .protocol import CRLF
 
@@ -225,6 +228,87 @@ struct GeminiRequest(Movable):
             True if respond() or respond_success() was called.
         """
         return self._responded
+
+    # --- Client Certificate Methods ---
+
+    fn has_client_cert(self) -> Bool:
+        """Check if the client presented a certificate.
+
+        Use this to check for client identity before accessing protected resources.
+        Only meaningful when server was created with client_auth="optional" or "required".
+
+        Returns:
+            True if client certificate is available.
+        """
+        return self._client.has_peer_cert()
+
+    fn client_cert_fingerprint(self) raises -> String:
+        """Get SHA-256 fingerprint of the client's certificate.
+
+        The fingerprint is a 64-character lowercase hex string representing
+        the SHA-256 hash of the DER-encoded certificate. This can be used
+        as a persistent client identity.
+
+        Returns:
+            64-character hex string.
+
+        Raises:
+            If no client certificate is available.
+        """
+        return self._client.get_peer_cert_fingerprint_hex()
+
+    fn verify_client_cert(self, expected_fingerprint: String) raises -> Bool:
+        """Verify client certificate fingerprint matches expected value.
+
+        Args:
+            expected_fingerprint: Expected SHA-256 fingerprint as hex string
+                (case-insensitive).
+
+        Returns:
+            True if fingerprint matches.
+
+        Raises:
+            If no client certificate is available.
+        """
+        return self._client.verify_peer_cert_fingerprint(expected_fingerprint)
+
+    # --- Certificate Response Methods ---
+
+    fn respond_cert_required(
+        mut self, message: String = "Client certificate required"
+    ) raises:
+        """Request client certificate (status 60).
+
+        The client should reconnect with a certificate.
+
+        Args:
+            message: Message to display to user.
+        """
+        self.respond(CERT_REQUIRED, message)
+
+    fn respond_cert_unauthorized(
+        mut self, message: String = "Certificate not authorized"
+    ) raises:
+        """Reject unauthorized certificate (status 61).
+
+        The client's certificate is not authorized for this resource.
+
+        Args:
+            message: Message to display to user.
+        """
+        self.respond(CERT_UNAUTHORIZED, message)
+
+    fn respond_cert_invalid(
+        mut self, message: String = "Certificate not valid"
+    ) raises:
+        """Reject invalid certificate (status 62).
+
+        The client's certificate is malformed or otherwise invalid.
+
+        Args:
+            message: Message to display to user.
+        """
+        self.respond(CERT_INVALID, message)
 
     fn _close(mut self):
         """Close the connection."""

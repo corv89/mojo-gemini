@@ -101,7 +101,7 @@ fn parse_url(url_string: String) raises -> GeminiUrl:
     var port = GEMINI_DEFAULT_PORT
 
     # Check for IPv6 address in brackets
-    if len(s) > 0 and s[0] == "[":
+    if len(s) > 0 and s.as_bytes()[0] == ord("["):
         var bracket_end = _find(s, "]")
         if bracket_end < 0:
             raise Error("Invalid URL: unclosed IPv6 bracket")
@@ -128,7 +128,7 @@ fn parse_url(url_string: String) raises -> GeminiUrl:
         raise Error("Invalid URL: missing hostname")
 
     # Parse port if present
-    if len(s) > 0 and s[0] == ":":
+    if len(s) > 0 and s.as_bytes()[0] == ord(":"):
         s = String(s[1:])  # Skip ":"
         var port_end = len(s)
         var slash_pos = _find(s, "/")
@@ -198,7 +198,7 @@ fn combine_url(base: GeminiUrl, target: String) raises -> GeminiUrl:
         path = target
 
     # Handle different relative path types
-    if len(path) > 0 and path[0] == "/":
+    if len(path) > 0 and path.as_bytes()[0] == ord("/"):
         # Absolute path (but relative host)
         pass
     elif len(path) == 0:
@@ -225,10 +225,12 @@ fn _find(s: String, sub: String) -> Int:
     if sub_len > len(s):
         return -1
 
+    var s_bytes = s.as_bytes()
+    var sub_bytes = sub.as_bytes()
     for i in range(len(s) - sub_len + 1):
         var found = True
         for j in range(sub_len):
-            if s[i + j] != sub[j]:
+            if s_bytes[i + j] != sub_bytes[j]:
                 found = False
                 break
         if found:
@@ -244,10 +246,12 @@ fn _rfind(s: String, sub: String) -> Int:
     if sub_len > len(s):
         return -1
 
+    var s_bytes = s.as_bytes()
+    var sub_bytes = sub.as_bytes()
     for i in range(len(s) - sub_len, -1, -1):
         var found = True
         for j in range(sub_len):
-            if s[i + j] != sub[j]:
+            if s_bytes[i + j] != sub_bytes[j]:
                 found = False
                 break
         if found:
@@ -258,21 +262,31 @@ fn _rfind(s: String, sub: String) -> Int:
 fn _normalize_path(path: String) -> String:
     """Normalize path by resolving . and .. components."""
     var parts = List[String]()
-    var current = String("")
+    var current_bytes = List[UInt8]()
+    var path_bytes = path.as_bytes()
 
     for i in range(len(path)):
-        var c = path[i]
-        if c == "/":
+        var c = path_bytes[i]
+        if c == ord("/"):
+            # Convert current_bytes to string for comparison
+            var current = String("")
+            for j in range(len(current_bytes)):
+                current += chr(Int(current_bytes[j]))
+
             if current == "..":
                 if len(parts) > 0:
                     _ = parts.pop()
             elif current != "." and len(current) > 0:
                 parts.append(current)
-            current = String("")
+            current_bytes = List[UInt8]()
         else:
-            current += c
+            current_bytes.append(c)
 
-    # Handle last component
+    # Handle last component - convert current_bytes to string
+    var current = String("")
+    for j in range(len(current_bytes)):
+        current += chr(Int(current_bytes[j]))
+
     if current == "..":
         if len(parts) > 0:
             _ = parts.pop()
@@ -288,7 +302,7 @@ fn _normalize_path(path: String) -> String:
         result += "/" + parts[i]
 
     # Preserve trailing slash if original had one
-    if len(path) > 0 and path[len(path) - 1] == "/":
+    if len(path) > 0 and path.as_bytes()[len(path) - 1] == ord("/"):
         result += "/"
 
     return result if len(result) > 0 else "/"

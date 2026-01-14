@@ -197,9 +197,10 @@ struct GeminiResponse(Movable):
             return ""
 
         # Find semicolon for parameters
+        var meta_bytes = self.meta.as_bytes()
         var semicolon_pos = -1
         for i in range(len(self.meta)):
-            if self.meta[i] == ";":
+            if meta_bytes[i] == ord(";"):
                 semicolon_pos = i
                 break
 
@@ -210,11 +211,12 @@ struct GeminiResponse(Movable):
             mime = self.meta
 
         # Trim whitespace
+        var mime_bytes = mime.as_bytes()
         var start = 0
         var end = len(mime)
-        while start < end and (mime[start] == " " or mime[start] == "\t"):
+        while start < end and (mime_bytes[start] == ord(" ") or mime_bytes[start] == ord("\t")):
             start += 1
-        while end > start and (mime[end - 1] == " " or mime[end - 1] == "\t"):
+        while end > start and (mime_bytes[end - 1] == ord(" ") or mime_bytes[end - 1] == ord("\t")):
             end -= 1
 
         return String(mime[start:end])
