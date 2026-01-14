@@ -2,6 +2,9 @@
 *.o
 simple_client
 simple_server
+prefork_server
+client_auth_server
+simple_server_test
 
 # Test certificates
 *.crt

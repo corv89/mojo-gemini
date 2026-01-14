@@ -70,6 +70,7 @@ from .response import GeminiResponse
 # Server API
 from .server import GeminiServer
 from .request import GeminiRequest
+from .prefork import PreforkServer
 
 # Utilities
 from .mime import detect_mime_type, is_text_type, is_gemini_type
